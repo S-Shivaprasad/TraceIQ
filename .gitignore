@@ -1,0 +1,27 @@
+
+# Python generated files
+__pycache__/
+*.py[cod]
+*.pyd
+
+# Python virtual environments
+.venv/
+venv/
+
+# Environment variables and secrets
+.env
+.env.*
+
+# Node dependencies and build output
+node_modules/
+dist/
+
+# Test and coverage output
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Editor and operating-system files
+.vscode/
+.DS_Store
+Thumbs.db
