@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 class PythonStructureVisitor(ast.NodeVisitor):
-    """Collect Python definitions, imports, and calls with their context."""
+    """Collect definitions, imports, and calls with scope information."""
 
     def __init__(self):
         self.functions = []
@@ -13,6 +13,7 @@ class PythonStructureVisitor(ast.NodeVisitor):
         self.calls = []
         self.function_stack = []
         self.class_stack = []
+        self.scope_stack = []
 
     def visit_FunctionDef(self, node):
         self._visit_function(node)
@@ -21,31 +22,50 @@ class PythonStructureVisitor(ast.NodeVisitor):
         self._visit_function(node)
 
     def _visit_function(self, node):
+        qualified_name = ".".join(
+            self.scope_stack + [node.name]
+        )
+
         self.functions.append({
             "name": node.name,
+            "qualified_name": qualified_name,
             "line": node.lineno,
             "end_line": node.end_lineno,
         })
 
-        self.function_stack.append(node.name)
+        self.function_stack.append(qualified_name)
+        self.scope_stack.append(node.name)
+
         self.generic_visit(node)
+
+        self.scope_stack.pop()
         self.function_stack.pop()
 
     def visit_ClassDef(self, node):
+        qualified_name = ".".join(
+            self.scope_stack + [node.name]
+        )
+
         self.classes.append({
             "name": node.name,
+            "qualified_name": qualified_name,
             "line": node.lineno,
             "end_line": node.end_lineno,
         })
 
-        self.class_stack.append(node.name)
+        self.class_stack.append(qualified_name)
+        self.scope_stack.append(node.name)
+
         self.generic_visit(node)
+
+        self.scope_stack.pop()
         self.class_stack.pop()
 
     def visit_Import(self, node):
         for alias in node.names:
             self.imports.append({
                 "module": alias.name,
+                "alias": alias.asname,
                 "line": node.lineno,
             })
 
@@ -53,6 +73,11 @@ class PythonStructureVisitor(ast.NodeVisitor):
         self.imports.append({
             "module": node.module or "",
             "names": [alias.name for alias in node.names],
+            "aliases": {
+                alias.asname: alias.name
+                for alias in node.names
+                if alias.asname
+            },
             "line": node.lineno,
         })
 
@@ -67,6 +92,7 @@ class PythonStructureVisitor(ast.NodeVisitor):
         if call_name:
             self.calls.append({
                 "name": call_name,
+                "is_attribute_call": isinstance(node.func, ast.Attribute),
                 "line": node.lineno,
                 "enclosing_function": (
                     self.function_stack[-1]
@@ -82,7 +108,7 @@ class PythonStructureVisitor(ast.NodeVisitor):
 
 
 def analyze_python_file(file_path: str) -> dict:
-    """Extract Python structure without executing the source code."""
+    """Extract Python structure without executing source code."""
     path = Path(file_path)
     source = path.read_text(encoding="utf-8")
 
